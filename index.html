@@ -155,7 +155,7 @@ function chkMetrics(all){let ok=0,sdkOk=0,sdkP=0,gone=0,last=0;all.forEach(p=>{c
 function hk(p){const c=chkOf(p.b);if(!c)return'none';if(c.btn===0)return'gone';if(c.btn===1)return'ok';return'unk'}
 function sdkState(p){const c=chkOf(p.b);if(!c||c.btn!==1)return'none';return c.o==='paused'?'paused':'active'}
 const HK=[['ok','Кнопка есть'],['gone','Кнопки нет'],['unk','Не определено'],['none','Не проверялась']],SDKO=[['paused','SDK на паузе'],['active','SDK активен']];
-function runState(){const r=CHK&&CHK.run;if(!r)return'idle';if(r.status==='новая'||r.status==='выдана')return'running';if(r.status==='отменена'){const v=serInfo();return v.done<v.tot?'paused':'idle'}return'done'}
+function runState(){const r=CHK&&CHK.run;if(!r)return'idle';if(/paused/i.test(r.result||'')&&r.status!=='новая'&&r.status!=='выдана'){const v=serInfo();return v.done<v.tot?'paused':'idle'}if(r.status==='новая'||r.status==='выдана')return'running';if(r.status==='отменена'){const v=serInfo();return v.done<v.tot?'paused':'idle'}return'done'}
 function restPoints(){const all=points(),st=(SER&&SER.started)||0;if(!st)return all;return all.filter(p=>{const c=chkOf(p.b);return !c||c.t<st})}
 let PROBF='all',PROBS={k:'res',d:1};
 function probSet(f){PROBF=f;renderChk()}
@@ -194,7 +194,7 @@ function renderChk0(){const el=$('ptChk');if(!el)return;const all=points(),m=chk
  else if(rs==='paused')btns=`<button class="btn" id="chkBtns" onclick="chkStart(true)">▶ Продолжить (осталось ${restPoints().length})</button><button class="btn o" onclick="chkRestart()">↻ Начать заново</button>`;
  else btns=`<button class="btn" id="chkBtns" onclick="chkStart(false)">▶ Запустить проверку</button>`;
  btns=`<span class="edit-only" style="display:inline-flex;gap:8px;flex-wrap:wrap">${btns}</span>`;
- const stt=!r?'запусков ещё не было':r.status==='новая'?'ждёт телефон «'+esc(r.device||'любой')+'»':r.status==='выдана'?'идёт · телефон «'+esc(r.device||'')+'»':rs==='paused'?'на паузе':r.status==='готово'?'завершена':r.status==='отменена'?'остановлена':'завершена с ошибкой';
+ const stt=!r?'запусков ещё не было':r.status==='новая'?'ждёт телефон «'+esc(r.device||'любой')+'»':r.status==='выдана'?'идёт · телефон «'+esc(r.device||'')+'»':rs==='paused'?(/paused/i.test(r.result||'')?'приостановлена: '+esc(((r.result||'').match(/paused:\s*([^;)]*)/i)||[])[1]||'').trim():'на паузе'):r.status==='готово'?'завершена':r.status==='отменена'?'остановлена':'завершена с ошибкой';
  el.innerHTML=`<div class="card"><h3>Проверка кнопок <small>последняя проверка: ${m.last?fdt(m.last):'—'}</small></h3><div class="tiles" style="margin:0">
  <div class="t clk" onclick="goProblems('gone')" title="Показать точки без кнопки"><span>Активных кнопок на карте</span><b>${m.ok} / ${n}</b><em>точек с успешной проверкой / точек по фиду</em></div>
  <div class="t clk" onclick="goProblems('sdk')" title="Показать точки с SDK на паузе"><span>Из них активных по SDK</span><b>${m.sdkOk} / ${m.ok} / ${n}</b><em>не на паузе / с успешной проверкой / по фиду</em></div></div></div>
