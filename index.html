@@ -160,18 +160,18 @@ function restPoints(){const all=points(),st=(SER&&SER.started)||0;if(!st)return 
 let PROBF='all',PROBS={k:'res',d:1};
 function probSet(f){PROBF=f;renderChk()}
 function probSort(k){if(PROBS.k===k)PROBS.d=-PROBS.d;else{PROBS.k=k;PROBS.d=1}renderChk()}
-function probTable(all){const isGone=x=>chkRes(x.c).k==='b',isSdk=x=>x.c.btn===1&&x.c.o==='paused';
- const base=all.map(p=>({p,c:chkOf(p.b)})).filter(x=>x.c&&(isGone(x)||isSdk(x)));
+function probTable(all){const isErr=x=>isOpenErrC(x.c),isGone=x=>!isErr(x)&&chkRes(x.c).k==='b',isSdk=x=>x.c.btn===1&&x.c.o==='paused';
+ const base=all.map(p=>({p,c:chkOf(p.b)})).filter(x=>x.c&&(isGone(x)||isErr(x)||isSdk(x)));
  if(!base.length)return '<div class="mut" style="margin-top:8px">Проблемных точек нет</div>';
- const nG=base.filter(isGone).length,nS=base.filter(isSdk).length;
- let bad=base.filter(x=>PROBF==='all'||(PROBF==='gone'?isGone(x):isSdk(x)));
- const rk=x=>isGone(x)?0:1,nm=(a,b)=>a.p.name.localeCompare(b.p.name,'ru')||a.p.city.localeCompare(b.p.city,'ru');
+ const nG=base.filter(isGone).length,nE=base.filter(isErr).length,nS=base.filter(isSdk).length;
+ let bad=base.filter(x=>PROBF==='all'||(PROBF==='gone'?isGone(x):PROBF==='err'?isErr(x):isSdk(x)));
+ const rk=x=>isGone(x)?0:isErr(x)?1:2,nm=(a,b)=>a.p.name.localeCompare(b.p.name,'ru')||a.p.city.localeCompare(b.p.city,'ru');
  const cmp={res:(a,b)=>rk(a)-rk(b)||nm(a,b),name:nm,city:(a,b)=>a.p.city.localeCompare(b.p.city,'ru')||nm(a,b),time:(a,b)=>(a.c.t||0)-(b.c.t||0)}[PROBS.k]||nm;
  bad.sort((a,b)=>cmp(a,b)*PROBS.d);
- const row=x=>`<tr class="r" onclick="openPoint('${x.p.b}')"><td style="box-shadow:inset 5px 0 0 var(--${isGone(x)?'bad':'warn'})"><b>${esc(x.p.name)}</b><div class="mut">${esc(x.p.addr.replace(/^.*?(?=[^,]*,[^,]*$)/,'').trim()||x.p.addr)}</div></td><td>${esc(x.p.city)}</td><td>${btnName(x.p)}</td><td>${chkBadge(x.c)}</td><td>${fdt(x.c.t)}</td><td class="mut" style="font-size:12px;max-width:340px">${esc(x.c.d||'')}</td></tr>`;
+ const row=x=>`<tr class="r" onclick="openPoint('${x.p.b}')"><td style="box-shadow:inset 5px 0 0 var(--${isGone(x)||isErr(x)?'bad':'warn'})"><b>${esc(x.p.name)}</b><div class="mut">${esc(x.p.addr.replace(/^.*?(?=[^,]*,[^,]*$)/,'').trim()||x.p.addr)}</div></td><td>${esc(x.p.city)}</td><td>${btnName(x.p)}</td><td>${chkBadge(x.c)}</td><td>${fdt(x.c.t)}</td><td class="mut" style="font-size:12px;max-width:340px">${esc(x.c.d||'')}</td></tr>`;
  const chip=(f,t,n)=>`<button class="chip ${PROBF===f?'on':''}" onclick="probSet('${f}')">${t} <b>${n}</b></button>`;
  const th=(k,t)=>`<th class="srt" onclick="probSort('${k}')">${t}${PROBS.k===k?(PROBS.d>0?' ▲':' ▼'):''}</th>`;
- return `<div class="chips" id="probTop" style="margin:10px 0 0;scroll-margin-top:12px">${chip('all','Все проблемные',base.length)}${chip('gone','Кнопки нет',nG)}${chip('sdk','SDK на паузе',nS)}</div><table style="margin-top:8px"><thead><tr>${th('name','Точка')}${th('city','Город')}<th>Кнопка</th>${th('res','Результат')}${th('time','Проверено')}<th>Что прочитано</th></tr></thead><tbody>${bad.map(row).join('')||'<tr><td colspan="6" class="mut">В этой группе точек нет</td></tr>'}</tbody></table>`}
+ return `<div class="chips" id="probTop" style="margin:10px 0 0;scroll-margin-top:12px">${chip('all','Все проблемные',base.length)}${chip('gone','Кнопки нет',nG)}${chip('err','Ошибка открытия',nE)}${chip('sdk','SDK на паузе',nS)}</div><table style="margin-top:8px"><thead><tr>${th('name','Точка')}${th('city','Город')}<th>Кнопка</th>${th('res','Результат')}${th('time','Проверено')}<th>Что прочитано</th></tr></thead><tbody>${bad.map(row).join('')||'<tr><td colspan="6" class="mut">В этой группе точек нет</td></tr>'}</tbody></table>`}
 let SER=LS.get('chkSeries',null);   // {started, run}: серия = полный запуск + его продолжения после пауз
 function serSync(){const r=CHK&&CHK.run;if(!r)return;const n=points().length;
  if(!SER||(SER.run!==r.id&&(r.total||0)>=n*0.98&&r.created>(SER.started||0))){SER={started:r.created||Date.now(),run:r.id};LS.set('chkSeries',SER)}
@@ -439,14 +439,17 @@ const agoTxt=t=>{if(!t)return'нет данных';const m=Math.round((Date.now(
 const lvlAge=(t,okMin)=>{if(!t)return'bad';const a=(Date.now()-t)/UXMIN;return a>okMin*5?'bad':a>okMin?'warn':'ok'};
 function uxPhone(){const cur=LS.get('device','');const d=(SRVDEV||[]).find(x=>x.name===cur)||(SRVDEV||[])[0];return d?{name:d.name,time:Number(d.time)||0,on:Date.now()-(Number(d.time)||0)<15*UXMIN}:null}
 function uxGone(){return CHK&&CHK.map?points().filter(p=>hk(p)==='gone'):[]}
+const OPENERR=['error','no_reaction','card_error'];function isOpenErrC(c){return !!c&&c.btn!==0&&OPENERR.indexOf(c.o)>=0}
+function uxErr(){return CHK&&CHK.map?points().filter(p=>isOpenErrC(chkOf(p.b))):[]}
 function uxFilterGone(){goProblems('gone')}
 /* 1+12+13. Полоса «Что требует внимания» + свежесть данных */
 function uxAttn(){const home=$('p-home');if(!home)return;let el=$('attn');if(!el){el=document.createElement('div');el.id='attn';const hb=$('homeBlocks');hb.parentNode.insertBefore(el,hb)}
- const td=todayOrders(),s=td?ordStats(td):null,gone=uxGone().length,sdkP=CHK&&CHK.map?points().filter(p=>sdkState(p)==='paused').length:0,needs=(LEADS&&LEADS.leads)?LEADS.leads.filter(l=>l.needs).length:null,ph=uxPhone(),now=Date.now();
+ const td=todayOrders(),s=td?ordStats(td):null,gone=uxGone().length,oerr=uxErr().length,sdkP=CHK&&CHK.map?points().filter(p=>sdkState(p)==='paused').length:0,needs=(LEADS&&LEADS.leads)?LEADS.leads.filter(l=>l.needs).length:null,ph=uxPhone(),now=Date.now();
  const chip=(lv,n,t,fn)=>`<button class="atn ${lv}" onclick="${fn}"><b>${n}</b><span>${t}</span></button>`;
  const items=[];
  if(s&&s.pend)items.push(chip('warn',s.pend,'заказов ждут принятия',"show('orders')"));
  if(gone)items.push(chip('bad',gone,'точек без кнопки',"goProblems('gone')"));
+ if(oerr)items.push(chip('bad',oerr,'точек с ошибкой открытия',"goProblems('err')"));
  if(sdkP)items.push(chip('warn',sdkP,'точек с SDK на паузе',"goProblems('sdk')"));
  if(needs)items.push(chip('warn',needs,'лидов ждут действия',"show('leads')"));
  if(ph&&!ph.on)items.push(chip('bad','!','телефон-исполнитель не на связи '+agoTxt(ph.time),"show('tasks')"));
@@ -458,9 +461,9 @@ function uxAttn(){const home=$('p-home');if(!home)return;let el=$('attn');if(!el
 let uxT0=Date.now();
 /* 2. Светофоры у разделов боковой панели */
 function uxDots(){const set=(p,lv,tip)=>{const b=document.querySelector('.ri[data-p="'+p+'"]');if(!b)return;let d=b.querySelector('.dot');if(!d){d=document.createElement('u');d.className='dot';b.appendChild(d)}d.className='dot '+lv;d.title=tip||'';d.setAttribute('aria-label',tip||'')};
- const td=todayOrders(),s=td?ordStats(td):null,gone=uxGone().length,sdkPn=CHK&&CHK.map?points().filter(p=>sdkState(p)==='paused').length:0,needs=(LEADS&&LEADS.leads)?LEADS.leads.filter(l=>l.needs).length:0,ph=uxPhone();
- const o=!s?'n':s.pend>0?'warn':'ok',pt=!CHK?'n':gone>0?'bad':sdkPn>0?'warn':'ok',ld=!LEADS?'n':needs?'warn':'ok',tk=!ph?'n':ph.on?'ok':'bad';
- const tO=!s?'Заказы: данных пока нет':s.pend?'Заказы: '+s.pend+' ждут принятия':'Заказы: все приняты, срочного нет',tP=!CHK?'Точки: проверка кнопок ещё не загружена':(gone||sdkPn)?'Точки: '+(gone?gone+' без кнопки':'')+(gone&&sdkPn?', ':'')+(sdkPn?sdkPn+' с SDK на паузе':''):'Точки: проблем с кнопками нет',tL=!LEADS?'Лиды: данных пока нет':needs?'Лиды: '+needs+' ждут действия':'Лиды: действий не требуется',tT=!ph?'Задачи: телефон-исполнитель не выбран':ph.on?'Задачи: телефон на связи':'Задачи: телефон не на связи '+agoTxt(ph.time);
+ const td=todayOrders(),s=td?ordStats(td):null,gone=uxGone().length,oerr=uxErr().length,sdkPn=CHK&&CHK.map?points().filter(p=>sdkState(p)==='paused').length:0,needs=(LEADS&&LEADS.leads)?LEADS.leads.filter(l=>l.needs).length:0,ph=uxPhone();
+ const o=!s?'n':s.pend>0?'warn':'ok',pt=!CHK?'n':(gone>0||oerr>0)?'bad':sdkPn>0?'warn':'ok',ld=!LEADS?'n':needs?'warn':'ok',tk=!ph?'n':ph.on?'ok':'bad';
+ const tO=!s?'Заказы: данных пока нет':s.pend?'Заказы: '+s.pend+' ждут принятия':'Заказы: все приняты, срочного нет',tP=!CHK?'Точки: проверка кнопок ещё не загружена':(gone||oerr||sdkPn)?'Точки: '+[gone?gone+' без кнопки':'',oerr?oerr+' с ошибкой открытия':'',sdkPn?sdkPn+' с SDK на паузе':''].filter(Boolean).join(', '):'Точки: проблем с кнопками нет',tL=!LEADS?'Лиды: данных пока нет':needs?'Лиды: '+needs+' ждут действия':'Лиды: действий не требуется',tT=!ph?'Задачи: телефон-исполнитель не выбран':ph.on?'Задачи: телефон на связи':'Задачи: телефон не на связи '+agoTxt(ph.time);
  set('orders',o,tO);set('points',pt,tP);set('leads',ld,tL);set('tasks',tk,tT);
  const rank={n:0,ok:1,warn:2,bad:3},all=[[o,tO],[pt,tP],[ld,tL],[tk,tT]].sort((a,b)=>rank[b[0]]-rank[a[0]]);
  const bad=all.filter(x=>x[0]==='bad'||x[0]==='warn').map(x=>x[1]);set('home',all[0][0],bad.length?bad.join('; '):'Всё в порядке')}
@@ -470,9 +473,11 @@ function uxTrend(){const el0=$('p-home');let el=$('homeTrend');if(!el){el=docume
  if(!ORDP){loadOrdP();el.innerHTML='';return}
  const os=ordObjs(ORDP).filter(o=>!o.test),d0=dayStart(),DAY=86400000,now=Date.now();
  const byDay=[];for(let i=6;i>=0;i--){const a=d0-i*DAY,b=a+DAY,l=os.filter(o=>o.cr>=a&&o.cr<b),st=ordStats(l);byDay.push({n:st.n,acc:st.acc,rate:st.rate})}
- const today=byDay[6],ydEnd=d0-DAY+(now-d0),yd=ordStats(os.filter(o=>o.cr>=d0-DAY&&o.cr<ydEnd));
+ const isWE=t=>{const g=new Date(t+12*3600000).getDay();return g===0||g===6},WDN=['вс','пн','вт','ср','чт','пт','сб'];
+ let kk=1;while(kk<7&&isWE(d0-kk*DAY)!==isWE(d0))kk++;
+ const cmpStart=d0-kk*DAY,today=byDay[6],ydEnd=cmpStart+(now-d0),yd=ordStats(os.filter(o=>o.cr>=cmpStart&&o.cr<ydEnd)),cmpLab=(isWE(d0)?'прошлому выходному':'прошлому будню')+' ('+WDN[new Date(cmpStart+12*3600000).getDay()]+', '+new Date(cmpStart+12*3600000).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'})+') к этому часу';
  const prev=byDay.slice(0,6).filter(x=>x.rate!=null),avgRate=prev.length?Math.round(prev.reduce((a,x)=>a+x.rate,0)/prev.length):null;
- const dlt=(v,r,unit)=>{if(r==null||v==null)return'<em>нет данных для сравнения</em>';const d=v-r;const c=d>0?'var(--ok)':d<0?'var(--bad)':'var(--mut)';return `<em style="color:${c}">${d>0?'+':''}${d}${unit||''} к ${unit==='%'?'обычному':'вчера к этому часу'} (${r}${unit||''})</em>`};
+ const dlt=(v,r,unit)=>{if(r==null||v==null)return'<em>нет данных для сравнения</em>';const d=v-r;const c=d>0?'var(--ok)':d<0?'var(--bad)':'var(--mut)';return `<em style="color:${c}">${d>0?'+':''}${d}${unit||''} к ${unit==='%'?'обычному':cmpLab} (${r}${unit||''})</em>`};
  const card=(t,v,sub,sp)=>`<div class="t"><span>${t}</span><b>${v}</b>${sub}${sp}</div>`;
  el.innerHTML=card('Заказов сегодня',today.n,dlt(today.n,yd.n),uxSpark(byDay.map(x=>x.n),'var(--acc)'))+card('Процент взятия',today.rate==null?'—':today.rate+'%',dlt(today.rate,avgRate,'%'),uxSpark(byDay.map(x=>x.rate||0),'var(--ok)'))+card('Принято за день',today.acc,'<em>линия — последние 7 дней</em>',uxSpark(byDay.map(x=>x.acc),'var(--warn)'))}
 /* 5. Быстрые фильтры на «Точках» + запоминание выбора */
